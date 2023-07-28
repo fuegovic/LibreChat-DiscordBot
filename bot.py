@@ -5,11 +5,18 @@ import asyncio
 import discord
 from discord.ext import commands
 import bot_config
+from getpass import getpass
 
 # Set the bot's token, user ID and working directory in "bot_config.py"
 TOKEN = bot_config.TOKEN
 USER_ID = bot_config.USER_ID
 WORKING_DIR = bot_config.WORKING_DIR
+
+# Check if the operating system is Unix-like, not Windows
+if os.name == 'posix':
+    SUDO_PASSWORD = getpass("Enter your sudo password: ")
+else:
+    SUDO_PASSWORD = None
 
 # Create an instance of the bot with the provided token and user ID
 intents = discord.Intents.all()
@@ -34,6 +41,7 @@ async def status(ctx):
     command = 'docker ps -a'
     await execute_command_with_status_message(ctx, command)
 
+# LibreChat docker-compose.yml:
 # Docker "Start" command
 @bot.hybrid_command(name="start", description="Start Docker")
 async def start(ctx):
@@ -64,6 +72,102 @@ async def update(ctx):
     elapsed_time = time.time() - start_time
     await status_message.edit(content=f'Update completed in {elapsed_time:.2f} seconds.')
 
+# LibreChat sudo docker-compose.yml:
+# Docker "Start-sudo" command
+@bot.hybrid_command(name="start-sudo", description="Start Docker with sudo")
+async def start_sudo(ctx):
+    os.chdir(WORKING_DIR) # Change the working directory to the specified folder
+    status_message = await ctx.send('Starting docker...')
+    command = 'sudo docker-compose up -d'
+    await execute_command_with_status_message(ctx, command)
+
+# Docker "Stop-sudo" command
+@bot.hybrid_command(name="stop-sudo", description="Stop Docker with sudo")
+async def stop_sudo(ctx):
+    os.chdir(WORKING_DIR) # Change the working directory to the specified folder
+    status_message = await ctx.send('Stopping docker...')
+    command = 'sudo docker-compose stop'
+    await execute_command_with_status_message(ctx, command)
+
+# Docker "Update" command   
+@bot.hybrid_command(name="update-sudo", description="Update LibreChat")
+async def update(ctx):
+    os.chdir(WORKING_DIR) # Change the working directory to the specified folder
+    status_message = await ctx.send('Update in progress...')
+    start_time = time.time()
+    commands = [
+        'sudo npm run update:docker',
+        'sudo docker-compose up -d'
+    ]
+    await execute_commands_with_status_messages(ctx, commands)
+    elapsed_time = time.time() - start_time
+    await status_message.edit(content=f'Update completed in {elapsed_time:.2f} seconds.')
+
+
+# LibreChat single-compose.yml:
+# Docker "start-single" command
+@bot.hybrid_command(name="start-single", description="Start Docker with single-compose.yml")
+async def start_single(ctx):
+    os.chdir(WORKING_DIR) # Change the working directory to the specified folder
+    status_message = await ctx.send('Starting docker...')
+    command = 'docker-compose -f ./docs/dev/single-compose.yml up -d'
+    await execute_command_with_status_message(ctx, command)
+
+# Docker "stop-single" command
+@bot.hybrid_command(name="stop-single", description="Stop Docker with single-compose.yml")
+async def stop_single(ctx):
+    os.chdir(WORKING_DIR) # Change the working directory to the specified folder
+    status_message = await ctx.send('Stopping docker...')
+    command = 'docker-compose -f ./docs/dev/single-compose.yml stop'
+    await execute_command_with_status_message(ctx, command)
+
+# Docker "update-s" command   
+@bot.hybrid_command(name="update-single", description="Update LibreChat - single-compose.yml")
+async def update_single(ctx):
+    os.chdir(WORKING_DIR) # Change the working directory to the specified folder
+    status_message = await ctx.send('Update in progress...')
+    start_time = time.time()
+    commands = [
+        'npm run update:single',
+        'docker-compose -f ./docs/dev/single-compose.yml up -d'
+    ]
+    await execute_commands_with_status_messages(ctx, commands)
+    elapsed_time = time.time() - start_time
+    await status_message.edit(content=f'Update completed in {elapsed_time:.2f} seconds.')
+
+# LibreChat local
+# Local "start-local" command
+@bot.hybrid_command(name="start-local", description="Start local")
+async def start_local(ctx):
+    os.chdir(WORKING_DIR) # Change the working directory to the specified folder
+    status_message = await ctx.send('Starting LibreChat...')
+    command = 'npm run backend'
+    await execute_command_with_status_message(ctx, command)
+
+# Local "stop-local" command
+@bot.hybrid_command(name="stop-local", description="Stop local")
+async def stop_local(ctx):
+    os.chdir(WORKING_DIR) # Change the working directory to the specified folder
+    status_message = await ctx.send('Stopping LibreChat...')
+    command = 'npm run backend:stop'
+    await execute_command_with_status_message(ctx, command)
+
+# Local "Update" command   
+@bot.hybrid_command(name="update-local", description="Update local")
+async def update_local(ctx):
+    os.chdir(WORKING_DIR) # Change the working directory to the specified folder
+    status_message = await ctx.send('Update in progress...')
+    start_time = time.time()
+    commands = [
+        'npm run backend:stop'
+        'npm run update:local',
+        'npm run backend'
+    ]
+    await execute_commands_with_status_messages(ctx, commands)
+    elapsed_time = time.time() - start_time
+    await status_message.edit(content=f'Update completed in {elapsed_time:.2f} seconds.')
+
+# Config working directory
 @bot.command(name="config", description="Change working directory")
 async def config(ctx):
     global WORKING_DIR
@@ -108,33 +212,29 @@ async def config(ctx):
 # Remove the default help command
 bot.remove_command('help')
 
-# Help command
-@bot.hybrid_command(name="help", description="Show help message")
+@bot.command(name='help', description="Returns all commands available")
 async def help(ctx):
-    # Create an embed object with a title, color and description
-    embed = discord.Embed(title="LibreChat Discord Bot", color=0x00ff00, description="A bot that allows you to control LibreChat from Discord.")
-
-    # Add fields for each slash command with its name and description
-    embed.add_field(name="/status", value="Docker status", inline=False)
-    embed.add_field(name="/start", value="Start Docker", inline=False)
-    embed.add_field(name="/stop", value="Stop Docker", inline=False)
-    embed.add_field(name="/update", value="Update LibreChat", inline=False)
-    embed.add_field(name="/config", value="Change working directory", inline=False)
-
-    # Add fields for each link with its name and url
-    embed.add_field(name="GitHub Repo", value="https://github.com/Berry-13/LibreChat-DiscordBot", inline=False)
-    embed.add_field(name="LibreChat Website", value="https://librechat.ai/", inline=False)
-    embed.add_field(name="LibreChat Docs", value="https://docs.librechat.ai/", inline=False)
-    embed.add_field(name="LibreChat Discord Server", value="https://discord.librechat.ai/", inline=False)
-
-    # Send the embed object as a message
-    await ctx.send(embed=embed)
+    help_embed = discord.Embed(title="Help", description="List of Commands:", color=0x00ff00)
+    for command in bot.commands:
+        #only include the commands that the user can run
+        if not command.hidden and command.enabled and len(set(command.checks).intersection(set(bot.checks)))==len(command.checks):
+            help_embed.add_field(name=f"/{command.name}", value=command.description, inline=False)
+    await ctx.send(embed=help_embed)
 
 # Function to execute a command and display the status message and log output
 async def execute_command_with_status_message(ctx, command):
     start_time = time.time()
     status = await ctx.send(f'Command "{command}"')
-    process = await asyncio.create_subprocess_shell(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+    if command.startswith("sudo") and SUDO_PASSWORD is not None:
+        # Create a Popen instance with a pipe to stdin
+        process = subprocess.Popen(command, shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+
+        # Write the sudo password to stdin
+        process.stdin.write(SUDO_PASSWORD + "\n")
+    else:
+        process = await asyncio.create_subprocess_shell(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
     stdout, stderr = await process.communicate()
     elapsed_time = time.time() - start_time
 
